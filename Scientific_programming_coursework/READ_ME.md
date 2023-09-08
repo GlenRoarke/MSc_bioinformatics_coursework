@@ -1,13 +1,13 @@
 # Forest Fire Simulation
 
 ## Authors
-Student number: 2228202
+Glen Roarke
 
-This project applies a series of rules to a numpy simulation of forest fires via the neighbourhood rule.
+This project applies a series of neighbourhood rules to a numpy simulation of forest fires.
 
 ## Description
 
-The main simulation is a .py file named forest_simulation_v2.py, 
+The main simulation is a python file named forest_simulation_v2.py, 
 additional rules have been added into evolution_forest_simulation.py and forest_simulation_attack.py.
 These can all be imported into the jupyterLab file Forest_fire_simulation_20230118.ipynb.
 
@@ -19,11 +19,11 @@ There is a report alongside this notebook which explains the results further.
 
 * Windows 10
 * Python 3.0 & Anaconda
-*Jupyter lab
+* Jupyter labs is required to run animations.
 
 ### Installing
 
-The software will be downloaded from an online zip folder.
+The software will be downloaded by cloning this repositiory. 
 
 ### Executing program
 
