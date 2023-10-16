@@ -1,0 +1,609 @@
+---
+title: "R programming coursework"
+author: "2228202"
+date: "2022-11-28"
+output: rmarkdown::github_document
+---
+
+# Install
+
+```{r install, eval=FALSE}
+install.packages("tidyverse")
+install.packages("ggplot2")
+install.packages("rstatix")
+install.packages("ggpubr")
+install.packages("knitr")
+install.packages("performance")
+install.packages("interactions")
+install.packages("jtools")
+install.packages("wesanderson")
+install.packages("vroom")
+install.packages("gridExtra")
+install.packages("ggh4x")
+install.packages('fitdistrplus')
+install.packages("glmmTMB")
+install.packages("MuMIn")
+install.packages("DHARMa")
+
+
+```
+
+## Load
+
+```{r setup, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library("tidyverse")
+library("ggplot2")
+library("rstatix")
+library("ggpubr")
+library("knitr")
+library("performance")
+library("interactions")
+library("jtools")
+library("wesanderson")
+library("vroom")
+library("gridExtra")
+library("ggh4x")
+library('fitdistrplus')
+library("glmmTMB")
+library("MuMIn")
+library("DHARMa")
+```
+
+# Introduction 
+
+
+Investigate if summer NAO (sNAO) has an effect on body mass of *Ovis aries* and determine other factors.
+
+## Hypothesis 
+
+* Null - The sNAO has no effect on body mass within the population.
+* Alternative - NAO and sNAO determines weight within the population.
+
+
+# Exploratory Data Analysis
+
+## Import
+
+
+```{r import}
+
+#Vroom package to load data.
+
+#sets wd to location of rmd file R studio only not console
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+
+# load in zipped gz files
+mass_data <- vroom("../Data/mass_fh22528.tsv.gz")
+nao_data <- vroom("../Data/NAO_fh22528.tsv.gz")
+```
+
+
+## Data Structure
+
+
+```{r data head and tail}
+#kable function presents in a table.
+knitr::kable(head(mass_data))
+
+knitr::kable(head(nao_data))
+
+```
+
+```{r data structure}
+
+# view the data types 
+dplyr::glimpse(mass_data)
+
+dplyr::glimpse(nao_data)
+
+```
+
+
+### mass_data 
+
+* response variable - weight (kgs) - data has been normalised.
+
+* predictor variables
+  + Sex 
+  + NAO 
+  + Age 
+
+### nao_data
+* Response variable - NAO
+  + negative (low) and positive (high).
+* predictor variable
+  + year
+  + month
+
+## Visualisations
+
+
+```{r EDA visuals}
+
+# Group NAO by year 
+grouped_NAO <- nao_data %>% 
+  group_by(year) %>% 
+  summarise(mean_NAO = mean(NAO))
+
+ggplot(grouped_NAO, aes(y = mean_NAO, x = year )) +
+  geom_line(col = "lightgrey") +
+  geom_point(col = "darkorchid3") +
+  theme_classic() +
+  ylab("difference in mean NAO (hPa)") +
+  ggtitle("Yearly NAO difference")
+  
+
+```
+**Figure 1.** Yearly mean NAO difference -
+  The figure, indicates that there is a clear positive relationship between NAO and year.There is a high level of fluctuation indicated by    the peaks and troughs.
+
+
+```{R summer check}
+
+ggplot(nao_data, aes(y = NAO, x = year, col = month)) +
+  geom_point() +
+  theme_classic() +
+  ggtitle("Yearly NAO difference by month")
+
+
+
+
+```
+
+**Figure 2.** Yearly NAO difference by month
+There is a clear pattern of NAO pressure being much more variable in June, July and august.
+
+
+
+```{r EDA jitter}
+
+#analysis of NAO data points by month
+
+#converts month character so it can be ordered.
+nao_data$month = factor(nao_data$month,levels = month.name)
+
+# NAO difference by month - boxplot and   jitter
+ggplot(nao_data, aes(y = NAO, 
+                     x = factor(nao_data$month,levels = month.name), fill = month)) +
+  geom_boxplot(alpha = 0.3, outlier.shape=NA) +
+  geom_point(position=position_jitterdodge()) +
+  theme_classic() +
+  ylab("difference NAO (hPa)") +
+  xlab("Month") +
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        ) +
+  ggtitle("Monthly NAO difference")
+  
+  
+
+```
+
+**Figure 3.** Monthly NAO difference  -
+This shows that NAO has much more variation within the months of June-August.
+
+
+## Mass data analysis
+
+### Check NAs
+
+
+```{r missing values, warning=FALSE}
+
+#check for NA values and present results in a table
+
+knitr::kable(mass_data %>%
+  dplyr::select(everything()) %>%  #select all columns
+  summarise_all(funs(sum(is.na(.)),n = n())) %>% #apply to all columns
+  dplyr::select(c(1:9))) # only show 1 sample total
+
+knitr::kable(nao_data %>%
+  dplyr::select(everything()) %>%  #select all columns
+  summarise_all(funs(sum(is.na(.)),n = n())) %>% #apply to all columns
+   dplyr::select(c(1:4)))# only show 1 sample total
+
+```
+
+
+```{r}
+#remove_NAs
+mass_data_clean <- mass_data %>% 
+  dplyr::filter(!is.na(weight))  #remove NAs
+
+```
+
+
+```{r weight histogram}
+# check for normal distribution of data of our response variable
+ggplot(mass_data_clean, aes(x = weight, alpha=after_stat(count))) + 
+  geom_histogram(fill = "darkolivegreen4", binwidth = 1) +
+  theme_classic() +
+  theme(legend.position = "none")
+
+```
+
+**Figure 4.** Distribution of weight difference -
+This figure shows how weight difference has a central tendency towards 1kg.
+
+```{r weight qqplot, warning=FALSE}
+
+ggqqplot(mass_data_clean, x = "weight", color = "dodgerblue4") + theme_classic()
+
+```
+
+**Figure 5.** Weight qqplot  -
+At the extreme ends weight data does not fit very well to a normal distribution, it is lightly tailed.
+
+
+
+
+**Figure 6.** Weight difference by age and sex  -
+Shows moderate positive correlations between age and weight difference for both sex groups.
+
+```{r}
+
+#weight and sex
+ggplot(mass_data_clean, aes(x= sex, y = weight, fill = sex)) + 
+  geom_boxplot() + theme_classic() +
+  scale_fill_manual(values = wes_palette("GrandBudapest1"))+
+  scale_color_manual(values = wes_palette("GrandBudapest1"))
+
+```
+
+**Figure 7. ** Sex and weight difference  -
+The difference in mean weight between the male and female groups.
+
+```{r}
+#weight, n_babies, facet by sex
+ggplot(mass_data_clean, aes(x = as.factor(n_babies), y = weight, fill = as.factor(n_babies))) + 
+  geom_violin() +
+  geom_boxplot(width=0.2, fill = "white") +
+  facet_grid(~ sex) +
+  theme_classic() +
+  scale_fill_manual(values = wes_palette("Zissou1"))+
+  scale_color_manual(values = wes_palette("Zissou1")) +
+  xlab(" Number of babies") +
+  stat_summary( fun = mean, geom="point") +
+  theme(legend.position="none")
+
+```
+
+**Figure 8. ** Number of babies and weight difference  -
+The number of babies does not influence a difference in weight.
+
+
+``` {R weight, year and age}
+
+#weight, age and year
+ggplot(mass_data_clean, aes(x= year, y = weight, col = age)) + 
+  geom_point() + theme_classic()
+  #scale_fill_manual(values = wes_palette("GrandBudapest1"))+
+  #scale_color_manual(values = wes_palette("GrandBudapest1"))
+
+
+```
+Figure 9 - Weight by Year and Age
+Older sheep do have larger weights.
+
+
+* **Summary** - Year, age and sex are interesting variables
+
+
+
+
+
+# Data transformation
+
+The mass data needs to be joined to the NAO data by the year column.
+
+
+
+```{r}
+
+
+# Join yearly mass to yearly NAO data.
+mass_NAO_df <- dplyr::left_join(mass_data_clean, nao_data,
+                                     by = c("year"= "year"))
+#view the transformation
+knitr::kable(head(mass_NAO_df))
+
+```
+ 
+
+```{R transform to sNAO category}
+
+#### lets try to create a summer categorical variable to group by ###
+## 28/12/2022
+
+#filter for the summer months with increased NAO variation
+summer_filter <- c("June", "July", "August")
+
+### creating a category of sNAO and not sNAO for visualisaton
+mass_NAO_df <- mass_NAO_df %>%
+  mutate(nao_type = case_when(month %in% summer_filter ~ "summer_NAO", #in summer
+                              !month %in% summer_filter ~ "not_summer_NAO"))#not in summer
+
+knitr::kable(head(mass_NAO_df))
+
+```
+
+
+
+## Data Visualisation
+Data visualation after the join.
+
+```{r point mean weight & mean NAO}
+#point data
+ggplot(data = mass_NAO_df, 
+       aes(x = NAO , y = weight, colour = nao_type )) + 
+  geom_point() + theme_classic()
+
+```
+
+**Figure 10 ** weight by summer NAO
+A view of the data after joining Mass and NAO data via year show clustering of non-summer months.
+
+
+
+# Generalised linear models (GLMs)
+
+Examine casual relationships using GLMs.
+
+* Variables of interest.
+  + sex
+  + NAO
+  + year
+  + age
+  + month
+  
+
+
+## Deciding distributions
+
+
+```{r fitdist }
+
+#check oberserved weigth differences, against the normal distribution.
+plot(fitdist(mass_NAO_df$weight, "norm"))
+
+
+#summary statistics, skewness is low.
+descdist(mass_NAO_df$weight, boot = 1000)
+
+```
+
+**Figure 11.** Fitdist the normal distribution -
+The normal distribution can be used in the model,there are negative values which limit other families.
+
+
+
+## Creating Models 
+
+```{R GLM creating models }
+# weight - predictors - NAO
+mod1 <- glm(weight ~ NAO,
+            data = mass_NAO_df,
+            family = "gaussian")
+
+# weight - predictors - NAO + sex 
+mod2 <-  glm(weight ~ NAO + sex,
+            data = mass_NAO_df,
+            family = "gaussian")
+
+# weight - predictors - NAO + sex 
+mod3 <-  glm(weight ~ NAO + sex * age,
+            data = mass_NAO_df,
+            family = "gaussian") 
+
+
+# weight - predictors - NAO + sex 
+mod4 <-  glm(weight ~ NAO + sex + age * year,
+            data = mass_NAO_df,
+            family = "gaussian")
+
+
+# null model for comparison
+null_mod <- glm(weight ~ 1,
+            data = mass_NAO_df,
+            family = "gaussian")
+
+        
+```
+
+## Assessing Model fit
+
+```{R Comparing models}
+
+# The performance package can compare models
+compare_performance(mod1, mod2, mod3, mod4) %>% kable()
+
+compare_performance(mod1, mod2, mod3, mod4, rank = TRUE) %>% kable()
+
+```
+
+
+**Table 1.** - A summary of GLM model formulas and ranking.
+Model 3 and 4 are the best performing models.
+
+
+
+```{r visual model performance}
+
+plot(compare_performance(mod1, mod2, mod3, mod4))
+
+```
+
+**Figure 12.** Model Ranking -
+A visual representation of model ranking, while a clear lowest AIC value has been determined in model 3, model 6 shows promising interactions of nao type variable and sex.
+
+
+```{r heteroscedasticity }
+#Checking for heteroscedasticity
+check_heteroscedasticity(mod1)
+check_heteroscedasticity(mod2)
+check_heteroscedasticity(mod3)
+check_heteroscedasticity(mod4)
+
+```
+
+
+## Model output
+
+```{r model outputs 4}
+
+summary(mod3)
+summary(mod4)
+
+```
+
+
+Model 3 and 4 do have significant p-values for sex and age predictor variables.
+
+
+```{r annova as model }
+
+# comparing deviance of models by order of ranking.
+
+anova(mod1, mod2, mod3, test = "Chisq")
+
+```
+
+
+
+
+
+```{r null model }
+
+# lets also compare predictors against a null model
+anova(mod4, null_mod, test= "Chisq")
+```
+
+
+
+
+
+```{r model 4.1}
+# computes a statistically significant p-value for chi-squared and formats the output better.
+summ(mod4, confint = TRUE)
+
+```
+
+```{r}
+
+export_summs(mod4)
+
+```
+
+
+
+## Predicted vs observed
+
+
+```{r}
+
+
+#Lets compare predicted vs observed values from some promising models.
+
+
+#model 3
+##visualize the fitted vs observed values for model 3 
+fit_data4 <- data.frame("predicted"= mod4$fitted.values,
+                       "observed" = mass_NAO_df$weight)
+##plot them
+po1 <- ggplot(fit_data4, aes(x=observed, y=predicted)) + 
+  geom_point(col = "lightgreen") + 
+  ##add a 1:1 line
+  geom_abline(intercept = 0) +
+  ##add a linear regression to your data
+  geom_smooth(method="lm",
+              col="lightblue",
+              se = F) +
+  #colour adjustment
+  ##set the theme
+  theme_classic() +
+  theme(legend.position="none") +
+  ggtitle("a) Model 3")
+
+
+
+#model 3.2 without interactions
+##visualize the fitted vs observed values for model 3 
+fit_data_3 <- data.frame("predicted"= mod3$fitted.values,
+                       "observed" = mass_NAO_df$weight)
+##plot them
+po2 <- ggplot(fit_data_3, aes(x=observed, y=predicted)) + 
+  geom_point(col = "firebrick") + 
+  ##add a 1:1 line
+  geom_abline(intercept = 0) +
+  ##add a linear regression to your data
+  geom_smooth(method="lm",
+              col="lightblue",
+              se = F) +
+  #colour adjustment
+  ##set the theme
+  theme_classic() +
+  theme(legend.position="none" ) +
+  ggtitle("b) Model 4") +
+  theme(axis.title.y =element_blank()) # remove dup axis
+
+
+
+
+grid.arrange(po1,po2, nrow = 1)
+
+
+
+```
+
+
+**Figure 13.** Predicted vs observed weight values -
+
+
+## visualising the models
+
+The check models package can be used to visualise model performance.
+
+```{r check model 3}
+
+check_model(mod3)
+
+```
+
+**Figure 14.** Performance package visualisation of model 3 -
+This visualization shows that the observed data fit relatively well to the model prediction.
+The error residuals fit a normal distribution via the qqplot but does tail off at the extremes.
+However, the model is presenting heteroscedasticity which is due to large variation in the dependent variable.
+
+
+```{r check model 4}
+
+check_model(mod4)
+
+```
+
+
+# Discussion
+
+To conclude, a positive relationship between weight difference and mean NAO has been identified (Figure 9). Sex and age are predictors of weight with males presenting a decrease in response (Figure 7). 
+
+There is evidence to reject the null hypothesis and claim that NAO is a variable that is linked to weight difference in *Oves ares*. The best GLM models identified in GLM analysis were Model 3 and 4. Further analysis using GLMMs is required to examine random effects of year and age.
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+ 
+ 
+ 
