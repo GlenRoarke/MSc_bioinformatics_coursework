@@ -72,7 +72,7 @@ Investigate if summer NAO (sNAO) has an effect on body mass of *Ovis aries* and 
 #Vroom package to load data.
 
 #sets wd to location of rmd file R studio only not console
-setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+#setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 
 # load in zipped gz files
@@ -283,13 +283,24 @@ ggplot(mass_data_clean, aes(x= year, y = weight, col = age)) +
   #scale_fill_manual(values = wes_palette("GrandBudapest1"))+
   #scale_color_manual(values = wes_palette("GrandBudapest1"))
 
-
 ```
 Figure 9 - Weight by Year and Age
-Older sheep do have larger weights.
+The plot shows that older sheep generally have higher weight.
+
+``` {R sex and age}
+ggplot(mass_data_clean, aes(x= sex, y = age)) + 
+  geom_boxplot() + theme_classic()
 
 
-* **Summary** - Year, age and sex are interesting variables
+#weight, age 
+ggplot(mass_data_clean, aes(x= age, y = weight, col = age)) + 
+  geom_point() + theme_classic()
+
+```
+
+
+
+* **Summary** - Sex , age and year are interesting variables.
 
 
 
@@ -394,7 +405,7 @@ mod2 <-  glm(weight ~ NAO + sex,
             family = "gaussian")
 
 # weight - predictors - NAO + sex 
-mod3 <-  glm(weight ~ NAO + sex * age,
+mod3 <-  glm(weight ~ NAO + sex + age,
             data = mass_NAO_df,
             family = "gaussian") 
 
@@ -467,7 +478,7 @@ Model 3 and 4 do have significant p-values for sex and age predictor variables.
 
 # comparing deviance of models by order of ranking.
 
-anova(mod1, mod2, mod3, test = "Chisq")
+anova(mod1, mod2, mod3, mod4, test = "Chisq")
 
 ```
 
@@ -585,14 +596,19 @@ check_model(mod4)
 ```
 
 
-# Discussion
+# GLM Discussion
 
-To conclude, a positive relationship between weight difference and mean NAO has been identified (Figure 9). Sex and age are predictors of weight with males presenting a decrease in response (Figure 7). 
+To conclude, clustering has been detected between the weight and NAO variables in non-summer months, with the summer months having much more varied weight (Figure 10). Sex and age are predictors of weight with males presenting a decrease in weight response variable(Figure 7). 
 
-There is evidence to reject the null hypothesis and claim that NAO is a variable that is linked to weight difference in *Oves ares*. The best GLM models identified in GLM analysis were Model 3 and 4. Further analysis using GLMMs is required to examine random effects of year and age.
+The GLM analysis confirms that model 3 is the best performing. However, there is Heteroscedasticity occuring in this model. 
+
+There is evidence to reject the null hypothesis and claim that NAO is a variable that is linked to weight difference in *Oves ares*.
 
 
+Further analysis using GLMMs is required to examine random effects of year and age.
 
+
+GLMM Analysis
 
 
 
