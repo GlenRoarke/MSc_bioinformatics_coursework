@@ -240,8 +240,6 @@ At the extreme ends weight data does not fit very well to a normal distribution,
 
 
 
-**Figure 6.** Weight difference by age and sex  -
-Shows moderate positive correlations between age and weight difference for both sex groups.
 
 ```{r}
 
@@ -613,13 +611,35 @@ Further analysis using GLMMs is required to examine random effects of year and a
 
 # Generalised linear mixed models (GLMMs)
 
-It is likely that there are other variables effecting the relationship between weight and NAO which have not been consdiered in our model.These random effect can be analysed using Genralised lineaer mixed-effect models.
+It is likely that there are other variables effecting the relationship between weight and NAO which have not been considered in our model.These random effect can be analysed using Genralised lineaer mixed-effect models.
+
+
+We need to think about the data structure and if there are any hierarchical structures in the dataset.
+
+## EDA for GLMMs
+
+```{R}
+
+# unique individuals
+length(unique(mass_NAO_df$ID))
+
+ggplot(mass_data_clean %>% group_by(ID) %>% summarise(sum_of_count = n_distinct(year)), 
+       aes(y = sum_of_count, x = ID)) + geom_point()
+
+  
+  
+```
+Figure 15
+There are 908 unique individuals that have had multiple observations overtime.
+The figure above shows there is variance in the amount of observations per person.
+
+
 
 
 * Random effects (potential)
-  + site
-  + number of babies
-  + age/ year
+  + ID
+  + Site
+  + year
 
 
 
@@ -639,53 +659,116 @@ mod3 <-  glm(weight ~ NAO + sex + age,
 
 
 #site as a random effect
-m_mod1 <- glmmTMB(weight ~ NAO + sex * age +
+m_mod1 <- glmmTMB(weight ~ NAO + sex + age +
                     (1|site), #random intercept effects
                   data=mass_NAO_df,
                   family="gaussian")
 
 
-
+#site as a random effect
+m_mod2 <- glmmTMB(weight ~ NAO + sex + age +
+                    (1|ID), #random intercept effects
+                  data=mass_NAO_df,
+                  family="gaussian")
 
 
 #site as a random effect
-m_mod1 <- glmmTMB(mean_weight_diff_kg ~ mean_nao + sex * age_yrs +
-                    (1|site), #random intercept effects
-                  data=grp_mass_pred_NAO_GLMM,
+m_mod3 <- glmmTMB(weight ~ NAO + sex + age +
+                    (1|ID/site), #random intercept effects
+                  data=mass_NAO_df,
                   family="gaussian")
 
 
 
-# number of babies as a random effect
-m_mod2 <-  glmmTMB(mean_weight_diff_kg ~ mean_nao + sex * age_yrs +
-                   (1|n_babies), #random intercept effects
-                   data=grp_mass_pred_NAO_GLMM,
-                   family="gaussian")
+```
 
-# age as a random effect
-m_mod3 <- glmmTMB(mean_weight_diff_kg ~ mean_nao + sex +
-                    (1|age_yrs ), #random intercept effects
-                  data=grp_mass_pred_NAO_GLMM,
-                  family="gaussian")
 
-# year as a random effect
-m_mod5 <- glmmTMB(mean_weight_diff_kg ~ mean_nao + sex * age_yrs +
-                    (1|year), #random intercept effects
-                  data=grp_mass_pred_NAO_GLMM,
-                  family="gaussian")
+```{R}
 
-# year as a random effect with no age predictor
-m_mod5.1 <- glmmTMB(mean_weight_diff_kg ~ mean_nao + sex +
-                    (1|year), #random intercept effects
-                  data=grp_mass_pred_NAO_GLMM,
-                  family="gaussian")
+summary(m_mod2)
+
+```
 
 
 
+```{R}
+
+summary(m_mod3)
+
+```
 
 
 
+```{r site and no numbers glmm, warning=FALSE}
 
+# there is very little difference between the marginal and conditional values for these two predictors.
+
+a <-  MuMIn::r.squaredGLMM(m_mod1)
+b <-  MuMIn::r.squaredGLMM(m_mod2)
+c <-  MuMIn::r.squaredGLMM(m_mod3)
+
+rbind(a,b,c) %>% kable()
+
+```
+
+
+
+``` {R }
+##load DHARMa
+library(DHARMa)
+
+## simulate the residuals from the model
+##setting the number of sims to 1000 (more better, according to the DHARMa help file)
+m_mod2_sim <- simulateResiduals(m_mod2, n = 1000)
+
+##plot out the residuals
+plot(m_mod2_sim)
+
+
+```
+FIgure 16 
+There is potential to be some autocorrelation due to the re-sampling of individuals
+
+```{R}
+
+library(stats)
+Box.test(mass_NAO_df$ID, lag = 20, type = "Ljung-Box")
+
+
+```
+
+
+``` {R}
+
+
+## add in the predicted values from the model:
+mass_NAO_df$predicted <- predict(m_mod2,
+                                     data = mass_NAO_df,
+                                     type = "response")
+
+
+##plot the predicted against the observed
+ggplot(mass_NAO_df, aes(x = weight,
+                            y = predicted)) +
+  geom_point(col="grey") +
+  geom_abline(slope = 1) +
+  theme_minimal() +
+  xlab("Observed") +
+  ylab("Predicted")
+
+```
+Figure 17 - Predicted vs observed values for the best performing model 2.
+The final visual check shows the model 2 fits reasonable well but there is some under and over prediction.
+
+## GLMM conclusion
+
+Model 2 introduces a random intercept for the "ID" grouping variable, and it demonstrates a good fit to the data with low AIC and BIC values. The model provides a dispersion estimate of 18.4 for the Gaussian family, indicating reasonably consistent variation in the response variable.
+
+In terms of fixed effects, "sex" and "age" are highly significant predictors of "weight," with "sex" showing a strong negative effect, while "NAO" does not appear to significantly impact the response.
+
+Overall, Model 2 is a robust and appropriate choice, capturing individual variation at the "ID" level and revealing the significant impact of sex and age on weight.
+
+This model provides evidence to accept the null hypothesis that summer NAO has no impact on body weight.
 
 
 
